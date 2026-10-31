@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#E20074">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="description" content="MoFu Sniper – HEKO präsentiert. Schieß die Verträge ab und sammle Provision! highspeedvorort.de">
+<title>MoFu Sniper – HEKO präsentiert</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css?v=20261031a">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<!-- HUD -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="hud-box hud-prov"><span class="lbl">PROVISION</span><span id="hudProv" class="val">0,00 €</span></div>
+    <div class="hud-box hud-time"><span class="lbl">ZEIT</span><span id="hudTime" class="val">75</span></div>
+    <div class="hud-box hud-ammo"><span class="lbl">MAGAZIN</span><span id="hudAmmo" class="ammo"></span></div>
+    <button id="btnMute" class="icon-btn" aria-label="Ton an/aus">🔊</button>
+  </div>
+  <div class="hud-sub">
+    <img src="assets/heko-logo.svg" alt="HEKO" class="hud-heko">
+    <span id="hudStreak" class="streak"></span>
+    <span class="hud-brand"><img src="assets/t-logo.svg" alt="" class="hud-t">highspeedvorort.de</span>
+  </div>
+  <div id="reloadMsg" class="reload-msg hidden">Nachladen…</div>
+  <div id="aimHint" class="aim-hint">☝️ Ziehen zum Zielen · FEUER zum Schießen</div>
+  <div class="controls">
+    <button id="btnSteady" class="ctrl steady" aria-label="Luft anhalten"><span>RUHIG</span><i id="breathBar"></i></button>
+    <button id="btnFire" class="ctrl fire" aria-label="Feuer"><span>FEUER</span></button>
+  </div>
+</div>
+
+<!-- Intro: HEKO präsentiert -->
+<div id="intro" class="screen intro">
+  <div class="intro-inner">
+    <div class="presents-card"><img src="assets/heko-logo.svg" alt="HEKO Büroservice"></div>
+    <div class="presents">präsentiert</div>
+    <div class="intro-title"><img src="assets/t-logo.svg" alt=""><span>MoFu <em>Sniper</em></span></div>
+    <div class="intro-url">highspeedvorort.de</div>
+  </div>
+  <div class="tap">Tippen zum Fortfahren</div>
+</div>
+
+<!-- Menü -->
+<div id="menu" class="screen menu hidden">
+  <div class="menu-card">
+    <div class="menu-heko"><img src="assets/heko-logo.svg" alt="HEKO"> <span>präsentiert</span></div>
+    <div class="title-row"><img src="assets/t-logo.svg" alt="" class="title-t"><h1>MoFu<br><em>Sniper</em></h1></div>
+    <p class="claim">Die Verträge fliegen wie Blätter im Wind. Schieß sie ab und kassier <b>Euro-Wert&nbsp;+&nbsp;Abschlussprovision</b>!</p>
+    <button id="btnPlay" class="btn primary">▶ SPIELEN</button>
+    <button id="btnBoard" class="btn">🏆 BESTENLISTE</button>
+    <button id="btnHelp" class="btn ghost">So geht's</button>
+    <div class="menu-foot"><img src="assets/t-logo.svg" alt="" class="foot-t"> highspeedvorort.de</div>
+  </div>
+</div>
+
+<!-- Hilfe -->
+<div id="help" class="screen panel-screen hidden">
+  <div class="panel">
+    <h2>So geht's</h2>
+    <ul class="help-list">
+      <li>☝️ <b>Ziehen</b> irgendwo auf dem Bildschirm bewegt das Zielfernrohr (am PC: Maus).</li>
+      <li>🎯 <b>FEUER</b> schießt (am PC: Klick). Nach jedem Schuss wird repetiert, nach 5 Schuss nachgeladen.</li>
+      <li>🫁 <b>RUHIG</b> gedrückt halten = Luft anhalten, das Fernrohr wackelt kaum (am PC: Leertaste oder rechte Maustaste).</li>
+      <li>💶 Jeder Treffer bringt den <b>Euro-Wert + AP</b> laut Provisionsliste.</li>
+      <li>✨ Je wertvoller der Vertrag, desto kleiner, schneller und zappeliger fliegt er – und desto goldener leuchtet er.</li>
+      <li>🔥 5 Treffer in Folge = <b>+3 Sekunden</b>.</li>
+    </ul>
+    <button class="btn primary" data-close>Alles klar</button>
+  </div>
+</div>
+
+<!-- Rundenende -->
+<div id="end" class="screen panel-screen hidden">
+  <div class="panel">
+    <div class="end-top"><img src="assets/heko-logo.svg" alt="HEKO" class="end-heko"><span class="end-label">Feierabend!</span></div>
+    <div class="end-sum-lbl">Deine Provision</div>
+    <div id="endProv" class="end-sum">0,00 €</div>
+    <div class="stats">
+      <div><b id="endHits">0</b><span>Treffer</span></div>
+      <div><b id="endAcc">0 %</b><span>Trefferquote</span></div>
+      <div><b id="endStreak">0</b><span>Beste Serie</span></div>
+    </div>
+    <div id="endBest" class="end-best"></div>
+    <form id="nameForm" class="name-form">
+      <input id="nameInput" maxlength="16" placeholder="Dein Name" autocomplete="nickname" required>
+      <button id="btnSubmit" class="btn primary small" type="submit">Eintragen</button>
+    </form>
+    <div id="submitMsg" class="submit-msg"></div>
+    <div class="row">
+      <button id="btnAgain" class="btn primary">↻ Nochmal</button>
+      <button id="btnEndBoard" class="btn">🏆 Bestenliste</button>
+    </div>
+    <button id="btnEndMenu" class="btn ghost">Menü</button>
+  </div>
+</div>
+
+<!-- Bestenliste -->
+<div id="board" class="screen panel-screen hidden">
+  <div class="panel board-panel">
+    <h2>🏆 Wer schießt die meiste Provision ab?</h2>
+    <div class="board-sub">Top 15 · MoFu Sniper</div>
+    <ol id="boardList" class="board-list"></ol>
+    <div id="boardMsg" class="board-msg"></div>
+    <button class="btn primary" data-close>Zurück</button>
+  </div>
+</div>
+
+<div id="rotateTip" class="hidden"></div>
+<script type="module" src="js/game.js?v=20261031a"></script>
+</body>
+</html>
