@@ -1,12 +1,12 @@
 // MoFu Sniper – HEKO präsentiert · highspeedvorort.de
-import { TARIFFS, CATEGORIES, difficulty, spawnWeight } from './data.js?v=20261031-1410';
-import * as A from './audio.js?v=20261031-1410';
-import { fetchTop, submitScore } from './leaderboard.js?v=20261031-1410';
+import { TARIFFS, CATEGORIES, difficulty, spawnWeight, valueChance } from './data.js?v=20261031-1510';
+import * as A from './audio.js?v=20261031-1510';
+import { fetchTop, submitScore } from './leaderboard.js?v=20261031-1510';
 
-export const VERSION = '20261031-1410';
+export const VERSION = '20261031-1510';
 const params = new URLSearchParams(location.search);
-const ROUND_SECONDS = Math.max(5, +params.get('seconds') || 75);
-const MAG_SIZE = 5, BOLT_TIME = 0.6, RELOAD_TIME = 1.7, ZOOM = 1.75, ZOOM_TIME = 0.2;
+const ROUND_SECONDS = Math.max(5, +params.get('seconds') || 30);
+const MAG_SIZE = 5, BOLT_TIME = 0.6, RELOAD_TIME = 1.7, ZOOM = 3.0, ZOOM_TIME = 0.2;
 const SW = 300, SH = 200, PAD = 28; // logische Vertragskarten-Größe (+Rand für Glanz)
 const opts = { freeze: params.has('freeze'), noSway: params.has('nosway') };
 
@@ -26,7 +26,7 @@ function loadImg(src) { return new Promise(r => { const i = new Image(); i.onloa
 const canvas = $('game');
 const ctx = canvas.getContext('2d');
 let W = 0, H = 0, DPR = 1, HORIZON = 0, baseCard = 120, scopeR = 130;
-let bgCanvas = null, cloudSprites = [], clouds = [];
+let bgCanvas = null, cloudSprites = [], clouds = [], banners = {};
 const IMG = {};
 const sprites = new Map(); let backSprite = null, spritePx = 400;
 
@@ -48,7 +48,7 @@ function resize() {
 function roundRect(g, x, y, w, h, r) { g.beginPath(); g.roundRect ? g.roundRect(x, y, w, h, r) : g.rect(x, y, w, h); }
 
 function buildBackground() {
-  const scale = Math.min(DPR * 1.6, Math.sqrt(14e6 / (W * H)));
+  const scale = Math.min(DPR * 2, Math.sqrt(16e6 / (W * H)));
   bgCanvas = document.createElement('canvas');
   bgCanvas.width = Math.round(W * scale); bgCanvas.height = Math.round(H * scale);
   const g = bgCanvas.getContext('2d'); g.scale(scale, scale);
@@ -92,22 +92,18 @@ function buildBackground() {
   // Billboard highspeedvorort.de auf dem Dach
   const bbW = bwid * 1.25, bbH = bbW * 0.42, bbX = bx + bwid / 2 - bbW / 2, bbY = HORIZON - bhh - bbH - 10;
   g.fillStyle = '#222'; g.fillRect(bbX + bbW * 0.2, bbY + bbH, 3, 12); g.fillRect(bbX + bbW * 0.78, bbY + bbH, 3, 12);
-  g.save(); g.shadowColor = 'rgba(226,0,116,.9)'; g.shadowBlur = 18;
-  g.fillStyle = '#E20074'; roundRect(g, bbX, bbY, bbW, bbH, 4); g.fill(); g.restore();
-  if (IMG.t) g.drawImage(IMG.t, bbX + bbH * 0.12, bbY + bbH * 0.12, bbH * 0.76, bbH * 0.76);
-  g.fillStyle = '#fff'; g.textBaseline = 'middle';
-  g.font = `800 ${bbH * 0.22}px system-ui, sans-serif`;
-  fitText(g, 'highspeedvorort.de', bbX + bbH * 0.98, bbY + bbH * 0.36, bbW - bbH * 1.08);
-  g.font = `600 ${bbH * 0.16}px system-ui, sans-serif`;
-  fitText(g, 'Glasfaser & MoFu vor Ort', bbX + bbH * 0.98, bbY + bbH * 0.68, bbW - bbH * 1.08);
+  banners.bb = { x: bbX, y: bbY, w: bbW, h: bbH };
+  // Fassaden-Banner am Telekom-Haus
+  const fw = bwid * 0.86, fh = Math.min(bhh * 0.2, fw * 0.32);
+  banners.facade = { x: bx + (bwid - fw) / 2, y: HORIZON - bhh + bhh * 0.12, w: fw, h: fh };
   // HEKO-Tower
   drawTower(g, hx, hw, hh, true, R);
   g.fillStyle = '#3a3360'; g.fillRect(hx + hw * 0.47, HORIZON - hh - hh * 0.12, hw * 0.06, hh * 0.12);
   g.fillStyle = '#ff3366'; g.beginPath(); g.arc(hx + hw * 0.5, HORIZON - hh - hh * 0.12, 2.5, 0, 7); g.fill();
   const lw = hw * 1.9, lh = lw * 0.36, lx = hx + hw / 2 - lw / 2, ly = HORIZON - hh - lh * 0.55;
-  g.save(); g.shadowColor = 'rgba(120,200,255,.9)'; g.shadowBlur = 22; g.fillStyle = '#fff';
-  roundRect(g, lx, ly, lw, lh, 5); g.fill(); g.restore();
-  if (IMG.heko) { const iw = lw * 0.84, ih = iw * 101.83 / 414.88; g.drawImage(IMG.heko, lx + (lw - iw) / 2, ly + (lh - ih) / 2, iw, ih); }
+  banners.heko = { x: lx, y: ly, w: lw, h: lh };
+  // senkrechtes Banner am HEKO-Tower
+  banners.vert = { x: hx + hw * 0.18, y: ly + lh + hh * 0.06, w: hw * 0.64, h: Math.min(hh * 0.42, hw * 2.6) };
   // Boden/Straßendunst
   const gr = g.createLinearGradient(0, HORIZON, 0, H);
   gr.addColorStop(0, '#2a1f3e'); gr.addColorStop(1, '#0e0b18');
@@ -152,8 +148,68 @@ function buildBackground() {
   g.strokeStyle = '#1d1a26'; g.lineWidth = 3; g.beginPath(); g.moveTo(W * 0.04 + 70, ry); g.lineTo(W * 0.04 + 70, ry - 60);
   g.moveTo(W * 0.04 + 58, ry - 50); g.lineTo(W * 0.04 + 82, ry - 50); g.moveTo(W * 0.04 + 62, ry - 40); g.lineTo(W * 0.04 + 78, ry - 40); g.stroke();
   // kleines HEKO-Schild an der Brüstung
-  if (IMG.heko) { const pw = Math.min(110, W * 0.22), ph = pw * 0.3; g.fillStyle = 'rgba(255,255,255,.85)'; roundRect(g, W * 0.5 - pw / 2, ry + 10, pw, ph, 4); g.fill();
-    g.drawImage(IMG.heko, W * 0.5 - pw * 0.42, ry + 10 + ph * 0.16, pw * 0.84, ph * 0.68); }
+  { const pw = Math.min(110, W * 0.22), ph = pw * 0.3; banners.ledge = { x: W * 0.5 - pw / 2, y: ry + 10, w: pw, h: ph }; }
+}
+
+// ---------- Banner & Logos: Vektor, jedes Bild neu gezeichnet → gestochen scharf, auch im 3×-Zoom ----------
+const HEKO_W = 414.88, HEKO_H = 101.83;
+const HEKO_NAVY = ["M0,95.73c0,6.1,6.1,6.1,6.1,6.1h7.95c.07,0,5.82-.05,6.07-5.73V61.06h57.07v35.03c.25,5.69,6,5.73,6.07,5.73h7.95s6.1,0,6.1-6.1V6.1C97.32,0,91.22,0,91.22,0h-7.94s-5.83,.02-6.08,5.73V40.77H20.12V5.73C19.87,.02,14.05,0,14.05,0H6.1S0,0,0,6.1V95.73H0Z", "M211.98,95.73c0,6.1,6.1,6.1,6.1,6.1h8.11c.07,0,5.96-.04,6.08-5.92v-29.47l45.14,33.98c1.08,.72,2.48,1.39,3.77,1.41h26.07c1.31-.27,3.48-1.32-3.38-6.02l-12.62-9.05h-.03l-51.49-35.76,51.44-35.84-.03,.02,12.73-9.08C312.38,.16,306.89,0,306.49,0h-24.35c-1.83,0-3.65,.69-5.02,1.68-.62,.44-1.46,1.06-2.2,1.61l-42.64,32.1V5.92C232.15,.01,226.19,0,226.19,0h-8.11S211.98,0,211.98,6.1V95.73h0Z", "M414.88,81.53v-24.87h-20.12v24.87h-60.54V20.3h24.55s-.03,0-.03,0V0h-24.53c-5.78,0-10.58,2.05-14.4,6.16-3.82,4.11-5.72,8.82-5.72,14.14v61.24c0,2.43,.23,4.68,.69,6.77,2.2,9.02,8.67,13.53,19.43,13.53h60.54c13.41,0,20.12-6.77,20.12-20.3", "M189.92,101.83s6.1,0,6.1-6.1v-8.11c0-5.27-4.55-5.99-5.79-6.08h-16.29s-38.29,0-38.29,0v-20.47h14.46v.03h31.38v-.03h8.96c1.49-.17,5.57-1.07,5.57-6.06v-8.13c0-5.69-5.3-6.07-6.02-6.1h-8.51s-31.32,0-31.32,0h0s-.06-.01-.06-.01v.02h-14.46V20.3h14.46v.02h.06s31.32-.01,31.32-.01h0s8.52,0,8.52,0c.77-.03,6-.44,6-6.1V6.1C196.02,0,189.92,0,189.92,0h-39.75s-28.72,0-28.72,0c0,0-6.1,0-6.1,6.1V95.73c0,6.1,6.1,6.1,6.1,6.1h68.46Z"];
+const HEKO_BLUE = "M414.88,50.91V20.3c0-5.55-1.94-10.32-5.81-14.31C405.19,2,400.42,0,394.76,0h-30.27V20.3h30.27v30.62h20.12Z";
+const T_PATH = 'M20 22h60v14H57v48H43V36H20z';
+let hekoPaths = null, tPath = null;
+function vecPaths() {
+  if (!hekoPaths) { hekoPaths = { navy: HEKO_NAVY.map(d => new Path2D(d)), blue: new Path2D(HEKO_BLUE) }; tPath = new Path2D(T_PATH); }
+}
+export function drawHeko(g, x, y, w, navy = '#262455', blue = '#009fe3') {
+  vecPaths(); const k = w / HEKO_W;
+  g.save(); g.translate(x, y); g.scale(k, k);
+  g.fillStyle = navy; for (const p of hekoPaths.navy) g.fill(p);
+  g.fillStyle = blue; g.fill(hekoPaths.blue); g.restore();
+}
+function drawTGlyph(g, x, y, size, color = '#fff', bg = null) { // Box 100×100
+  vecPaths(); const k = size / 100;
+  g.save(); g.translate(x, y); g.scale(k, k);
+  if (bg) { g.fillStyle = bg; roundRect(g, 0, 0, 100, 100, 14); g.fill(); }
+  g.fillStyle = color; g.fill(tPath); g.fillRect(18, 52, 13, 13); g.fillRect(69, 52, 13, 13);
+  g.restore();
+}
+const FONT = '"Segoe UI", Roboto, "Helvetica Neue", Helvetica, Arial, system-ui, sans-serif';
+function bannerText(g, txt, x, y, maxW, size, weight, color) {
+  g.font = `${weight} ${size}px ${FONT}`;
+  const tw = g.measureText(txt).width; if (tw > maxW) { size *= maxW / tw; g.font = `${weight} ${size}px ${FONT}`; }
+  g.fillStyle = color; g.fillText(txt, x, y);
+}
+function drawBanners(g) {
+  const B = banners; if (!B.bb) return;
+  g.save(); g.textBaseline = 'middle'; g.textAlign = 'left';
+  // 1) highspeedvorort.de – Dach-Billboard (magenta, leuchtend)
+  let b = B.bb;
+  g.save(); g.shadowColor = 'rgba(226,0,116,.85)'; g.shadowBlur = 16; g.fillStyle = '#E20074'; roundRect(g, b.x, b.y, b.w, b.h, b.h * 0.06); g.fill(); g.restore();
+  g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = Math.max(0.6, b.h * 0.02); roundRect(g, b.x + b.h * 0.04, b.y + b.h * 0.04, b.w - b.h * 0.08, b.h * 0.92, b.h * 0.05); g.stroke();
+  drawTGlyph(g, b.x + b.h * 0.1, b.y + b.h * 0.1, b.h * 0.8, '#fff');
+  bannerText(g, 'highspeedvorort.de', b.x + b.h * 0.98, b.y + b.h * 0.37, b.w - b.h * 1.1, b.h * 0.24, 900, '#fff');
+  bannerText(g, 'Glasfaser & MoFu vor Ort', b.x + b.h * 0.98, b.y + b.h * 0.68, b.w - b.h * 1.1, b.h * 0.165, 700, '#ffe3f1');
+  // 2) Fassaden-Banner am Telekom-Haus
+  b = B.facade;
+  g.fillStyle = '#ffffff'; roundRect(g, b.x, b.y, b.w, b.h, b.h * 0.08); g.fill();
+  g.fillStyle = '#E20074'; g.fillRect(b.x, b.y + b.h * 0.86, b.w, b.h * 0.14);
+  drawTGlyph(g, b.x + b.h * 0.1, b.y + b.h * 0.08, b.h * 0.72, '#fff', '#E20074');
+  bannerText(g, 'MOBILFUNK & GLASFASER', b.x + b.h * 0.95, b.y + b.h * 0.43, b.w - b.h * 1.05, b.h * 0.3, 900, '#1a1830');
+  // 3) HEKO-Leuchtschild auf dem Tower
+  b = B.heko;
+  g.save(); g.shadowColor = 'rgba(120,200,255,.9)'; g.shadowBlur = 18; g.fillStyle = '#fff'; roundRect(g, b.x, b.y, b.w, b.h, b.h * 0.1); g.fill(); g.restore();
+  { const iw = b.w * 0.84; drawHeko(g, b.x + (b.w - iw) / 2, b.y + (b.h - iw * HEKO_H / HEKO_W) / 2, iw); }
+  // 4) senkrechtes Banner am HEKO-Tower
+  b = B.vert;
+  g.fillStyle = '#262455'; roundRect(g, b.x, b.y, b.w, b.h, b.w * 0.08); g.fill();
+  g.fillStyle = '#E20074'; g.fillRect(b.x, b.y, b.w, b.w * 0.12); g.fillRect(b.x, b.y + b.h - b.w * 0.12, b.w, b.w * 0.12);
+  g.save(); g.translate(b.x + b.w * 0.52, b.y + b.h / 2); g.rotate(-Math.PI / 2); g.textAlign = 'center';
+  bannerText(g, 'HEKO BÜROSERVICE', 0, 0, b.h * 0.8, b.w * 0.42, 900, '#ffffff'); g.restore();
+  // 5) HEKO-Schild an der Brüstung
+  b = B.ledge;
+  g.fillStyle = 'rgba(255,255,255,.92)'; roundRect(g, b.x, b.y, b.w, b.h, 4); g.fill();
+  drawHeko(g, b.x + b.w * 0.08, b.y + (b.h - b.w * 0.84 * HEKO_H / HEKO_W) / 2, b.w * 0.84);
+  g.restore();
 }
 
 function drawTower(g, x, w, h, glass, R) {
@@ -300,25 +356,44 @@ function pickTariff() {
 }
 
 // Schwierigkeit hängt stufenlos am Wert: d=0 billig … d=1 MagentaMobil M Neu (156,50 €)
+// Alle Schwierigkeits-Stellgrößen als stetige Funktionen des Werts (d = 0 … 1).
+// Größer d ⇒ weiter weg/kleiner, schneller, hektischer, häufigere Richtungswechsel, stärkeres Überschlagen.
+export function profile(d) {
+  return {
+    zFar: 0.42 - 0.2 * d, zNear: 0.78 - 0.3 * d,   // Tiefe (Maßstab) – fern bzw. selten nah
+    sizeK: 1.08 - 0.3 * d,                          // zusätzlicher Größenfaktor
+    speedK: 0.055 + 0.23 * d,                       // Drift in Bildschirmbreiten/s (vor Tiefenfaktor)
+    omegaK: 1 + 1.6 * d,                            // Pendel-Frequenz (Flattern)
+    swingK: 0.012 + 0.035 * d, bobK: 0.012 + 0.03 * d,
+    rotAmp: 0.22 + 0.45 * d, flipAmp: 0.55 + 2.4 * d, flipFreqK: 1 + 1.8 * d,
+    jitEvery: 2.6 - 2.2 * d,                        // s zwischen Richtungswechseln
+    jitAmp: 0.02 + 0.16 * d,                        // Stärke der Richtungswechsel
+    jitRate: 1.2 + 4 * d,                           // wie abrupt
+    fallK: 0.012 + 0.02 * d,
+  };
+}
 function makeContract(t, x, y, onScreen) {
-  const d = difficulty(t);
-  const z = clamp(1.02 - 0.6 * d + rand(-0.07, 0.07), 0.3, 1.05);           // Tiefe: teuer = weiter weg
-  const w = baseCard * z * (1.08 - 0.3 * d), h = w * SH / SW;               // teuer = kleiner
+  const d = difficulty(t), P = profile(d);
+  // Tiefe: fast alle weit weg zwischen den Hochhäusern, nur ab und zu ein näherer; teuer = noch weiter weg
+  const near = Math.random() < 0.12;
+  const z = near ? clamp(P.zNear + rand(-0.08, 0.08), 0.4, 0.9)
+                 : clamp(P.zFar + rand(-0.06, 0.06), 0.17, 0.5);
+  const w = baseCard * z * P.sizeK, h = w * SH / SW;               // teuer = kleiner
   const dir = windDir;
-  const speed = W * (0.055 + 0.23 * d) * (0.55 + 0.45 * z) * rand(0.85, 1.15); // teuer = schneller
+  const speed = W * P.speedK * (0.55 + 0.45 * z) * rand(0.85, 1.15); // teuer = schneller
   const fromTop = !onScreen && Math.random() < 0.18;
-  const yMax = Math.min(HORIZON + (H * 0.86 - HORIZON) * 0.5, H * 0.8);
+  const yMax = Math.min(HORIZON + (H * 0.86 - HORIZON) * 0.5, H * 0.8) - (1 - z) * (H * 0.06);
   const c = {
     t, d, z, w, h, dir,
     x: x ?? (onScreen ? rand(0.1, 0.9) * W : fromTop ? rand(0.05, 0.85) * W : (dir > 0 ? -w : W + w)),
-    y: y ?? (fromTop ? -h : rand(H * 0.1, yMax - h)),
+    y: y ?? (fromTop ? -h : z < 0.55 ? rand(Math.max(H * 0.14, HORIZON - H * 0.42), HORIZON - h * 1.2) : rand(H * 0.1, yMax - h)),
     vx: dir * speed * (fromTop ? 0.5 : 1),
-    fall: H * (0.012 + 0.02 * d) * z * (fromTop ? 3 : 1),
-    phase: rand(0, 7), omega: rand(1.1, 1.6) * (1 + 1.6 * d),
-    swing: W * (0.012 + 0.035 * d) * z, bob: H * (0.012 + 0.03 * d) * z,
-    rotAmp: 0.22 + 0.45 * d, spin: rand(-0.25, 0.25),
-    flipAmp: 0.55 + 2.4 * d, flipFreq: rand(0.7, 1.2) * (1 + 1.8 * d), flipPh: rand(0, 7),
-    jitT: rand(0.5, 2.5 - 2.0 * d), jitEvery: 2.6 - 2.2 * d, jx: 0, jy: 0, tjx: 0, tjy: 0,
+    fall: H * P.fallK * z * (fromTop ? 3 : 1),
+    phase: rand(0, 7), omega: rand(1.1, 1.6) * P.omegaK,
+    swing: W * P.swingK * z, bob: H * P.bobK * z,
+    rotAmp: P.rotAmp, spin: rand(-0.25, 0.25),
+    flipAmp: P.flipAmp, flipFreq: rand(0.7, 1.2) * P.flipFreqK, flipPh: rand(0, 7),
+    jitT: rand(0.3, P.jitEvery), jitEvery: P.jitEvery, jitAmp: P.jitAmp, jitRate: P.jitRate, jx: 0, jy: 0, tjx: 0, tjy: 0,
     yMax, age: 0, entered: !!onScreen, rot: 0, flip: 0, frozen: false,
   };
   return c;
@@ -331,12 +406,12 @@ function updateContract(c, dt) {
   c.jitT -= dt;
   if (c.jitT <= 0) {
     c.jitT = c.jitEvery * rand(0.6, 1.4);
-    c.tjx = rand(-1, 1) * W * (0.02 + 0.16 * d) * c.z;
-    c.tjy = rand(-1, 1) * H * (0.02 + 0.16 * d) * c.z;
+    c.tjx = rand(-1, 1) * W * c.jitAmp * c.z;
+    c.tjy = rand(-1, 1) * H * c.jitAmp * c.z;
   }
   if (c.y < H * 0.06) c.tjy = Math.abs(c.tjy) + H * 0.04;
   if (c.y > c.yMax) c.tjy = -Math.abs(c.tjy) - H * 0.05 - c.fall;
-  const k = Math.min(1, dt * (1.2 + 4 * d));
+  const k = Math.min(1, dt * c.jitRate);
   c.jx += (c.tjx - c.jx) * k; c.jy += (c.tjy - c.jy) * k;
   const gx = gust * W * 0.05 * c.z * c.dir;
   c.x += (c.vx + gx + c.jx + Math.cos(c.phase) * c.swing * c.omega) * dt;
@@ -351,10 +426,12 @@ function drawContract(g, c) {
   const cf = Math.cos(c.flip), front = cf >= 0, s = c.w / SW;
   const sp = front ? cardSprite(c.t) : getBackSprite();
   g.save(); g.translate(c.x, c.y); g.rotate(c.rot); g.scale(Math.max(0.04, Math.abs(cf)), 1);
-  g.globalAlpha = 0.72 + 0.28 * Math.min(1, c.z);
+  g.globalAlpha = 0.8 + 0.2 * Math.min(1, c.z);
   g.drawImage(sp, -(SW / 2 + PAD) * s, -(SH / 2 + PAD) * s, (SW + 2 * PAD) * s, (SH + 2 * PAD) * s);
-  const shade = (1 - Math.abs(cf)) * 0.4 + (1 - c.z) * 0.15;
+  const shade = (1 - Math.abs(cf)) * 0.4;
   if (shade > 0.02) { g.globalAlpha = shade; g.fillStyle = '#2a1840'; roundRect(g, -c.w / 2, -c.h / 2, c.w, c.h, 10 * s); g.fill(); }
+  const haze = clamp((0.85 - c.z) * 0.5, 0, 0.36);              // Dunst der Abendluft: weit weg = blasser/rosa
+  if (haze > 0.01) { g.globalAlpha = haze; g.fillStyle = '#c98bb8'; roundRect(g, -c.w / 2, -c.h / 2, c.w, c.h, 10 * s); g.fill(); }
   g.restore();
 }
 
@@ -423,6 +500,7 @@ function drawFloats(g) {
 function drawWorld(g, list) {
   g.drawImage(bgCanvas, 0, 0, W, H);
   for (const c of clouds) g.drawImage(cloudSprites[c.k], c.x, c.y, 320 * c.s, 110 * c.s);
+  drawBanners(g); // nach den Wolken → volle Leuchtkraft & Kontrast
   const sorted = [...list].sort((a, b) => a.z - b.z);
   for (const c of sorted) drawContract(g, c);
   drawParts(g);
@@ -433,7 +511,7 @@ function sway() {
   if (!G || opts.noSway) return { x: 0, y: 0 };
   const t = G.swayT, m = Math.min(W, H), z = ease(G.zoomT);
   const holding = G.steady && G.breath > 0, empty = G.breath <= 0.02;
-  let breathAmp = m * lerp(0.008, 0.055, z), tremor = m * lerp(0.0015, 0.009, z);
+  let breathAmp = m * lerp(0.008, 0.036, z), tremor = m * lerp(0.0015, 0.0055, z);
   if (holding) { breathAmp *= 0.32; tremor *= 0.55; } else if (empty) { breathAmp *= 1.6; tremor *= 1.8; }
   const bx = Math.sin(t * 1.15) * 0.65 + Math.sin(t * 2.7 + 1.3) * 0.35;
   const by = Math.sin(t * 0.85 + 0.6) * 0.6 + Math.cos(t * 2.2) * 0.4;
@@ -444,7 +522,7 @@ function sway() {
 const ease = t => t * t * (3 - 2 * t);
 function aimPoint() { const s = sway(); return { x: clamp(aim.x + s.x, 0, W), y: clamp(aim.y + s.y - (G ? G.recoil * (0.25 + 0.75 * ease(G.zoomT)) : 0), 0, H) }; }
 // Streuung aus der Hüfte (ohne Zoom): großer Kreis, darum lohnt sich das Anlegen
-function hipSpread() { return opts.noSway ? 0 : Math.min(W, H) * 0.085; }
+function hipSpread() { return opts.noSway ? 0 : Math.min(W, H) * 0.07; }
 
 // ---------- Gewehr (First-Person) ----------
 function drawRifle(g, P) {
@@ -579,10 +657,7 @@ function fire() {
     rings.push({ x: P.x, y: P.y, r0: 4, r1: 40, lw: 3, col: c.d > 0.45 ? '#ffcf3f' : '#ffffff', life: 0.4, max: 0.4 });
     floats.push({ x: P.x, y: P.y - 26, text: payoutText(c.t), sub: c.t.name, size: clamp(Math.min(W, H) * 0.06, 18, 30), col: c.d > 0.45 ? '#ffd84a' : '#ffffff', life: 1.6, max: 1.6 });
     const pb = $('hudProv').parentElement; pb.classList.remove('bump'); void pb.offsetWidth; pb.classList.add('bump');
-    if (G.streak % 5 === 0) {
-      G.timeLeft += 3; A.bonus();
-      floats.push({ x: W / 2, y: H * 0.3, text: `🔥 Serie ×${G.streak}! +3 s`, size: clamp(Math.min(W, H) * 0.065, 20, 34), col: '#ffcf3f', life: 1.8, max: 1.8 });
-    }
+    if (G.streak % 5 === 0) A.bonus(); // nur Jingle – keine Zeitgutschrift, Runde bleibt exakt 30 s
   } else {
     G.streak = 0; A.miss();
     rings.push({ x: P.x, y: P.y, r0: 2, r1: 16, lw: 2, col: 'rgba(255,255,255,.7)', life: 0.35, max: 0.35 });
@@ -772,7 +847,7 @@ function frame(now) {
     const sec = Math.ceil(G.timeLeft);
     if (sec <= 5 && sec >= 1 && sec !== G.lastTick) { G.lastTick = sec; A.tick(); }
     G.spawnT -= dt;
-    const maxC = W > H ? 9 : 7;
+    const maxC = W > H ? 11 : 9;
     if (G.spawnT <= 0 && !opts.freeze) { G.spawnT = rand(0.5, 1.0); if (G.contracts.length < maxC) G.contracts.push(makeContract(pickTariff())); }
     for (const c of G.contracts) updateContract(c, dt);
     G.contracts = G.contracts.filter(c => !outOfView(c));
@@ -820,5 +895,12 @@ window.__mofu = {
   spawnAt(id, x, y) { const c = makeContract(TARIFFS[id], x, y, true); c.frozen = true; c.rot = 0; c.flip = 0; c.x = x; c.y = y; G.contracts.push(c); return c; },
   clearContracts() { if (G) G.contracts.length = 0; },
   clearFx() { parts = []; floats = []; rings = []; },
-  sample(id) { const c = makeContract(TARIFFS[id], W / 2, H / 3, true); return { d: c.d, z: c.z, w: c.w, speed: Math.abs(c.vx), jitEvery: c.jitEvery, flipAmp: c.flipAmp, omega: c.omega, weight: spawnWeight(TARIFFS[id]) }; },
+  profile, valueChance, spawnWeight, difficulty, get banners() { return banners; },
+  // simuliert die Flugzeit (Sekunden sichtbar) eines frisch vom Rand gestarteten Vertrags
+  simLife(id, n = 200) { let tot = 0, vis = 0; const g0 = gust;
+    for (let i = 0; i < n; i++) { const c = makeContract(TARIFFS[id]); let t = 0, seen = 0;
+      while (!outOfView(c) && t < 40) { gust = 0.5 + 0.5 * Math.sin(t * 0.37 + i); updateContract(c, 1 / 30); t += 1 / 30; if (c.x > 0 && c.x < W && c.y > 0 && c.y < H) seen += 1 / 30; }
+      tot += t; vis += seen; }
+    gust = g0; return { life: tot / n, visible: vis / n }; },
+  sample(id) { const c = makeContract(TARIFFS[id], W / 2, H / 3, true); return { d: c.d, z: c.z, w: c.w, scoped: c.w * ZOOM, speed: Math.abs(c.vx), jitEvery: c.jitEvery, flipAmp: c.flipAmp, omega: c.omega, weight: spawnWeight(TARIFFS[id]) }; },
 };

@@ -121,10 +121,15 @@ export function valueOf(t) { return t.eur + t.ap; }
 export function difficulty(t) {
   return Math.pow(valueOf(t) / MAX_VALUE, 0.85);
 }
-// Spawn-Gewicht: je wertvoller, desto seltener (stetig fallend).
-export function spawnWeight(t) {
+// Spawn-Chance: hängt NUR am Wert und fällt stetig – je wertvoller, desto seltener.
+// Tarife mit identischem Gesamtwert teilen sich die Chance ihrer Wertstufe (sonst würden
+// z. B. die 14 gleichen 3,50-€-Zeilen den Himmel füllen).
+const VALUE_GROUP = {};
+for (const t of TARIFFS) VALUE_GROUP[valueOf(t)] = (VALUE_GROUP[valueOf(t)] || 0) + 1;
+export function valueChance(t) { // relatives Gewicht der Wertstufe
   const d = difficulty(t);
-  // down/down+ sind 30 fast identische Billig-Zeilen → etwas ausdünnen
-  const catFactor = (t.cat === 'down' || t.cat === 'downp') ? 0.45 : 1;
-  return catFactor * (0.09 + Math.pow(1 - d, 1.4));
+  return 0.1 + Math.pow(1 - d, 2);
+}
+export function spawnWeight(t) {
+  return valueChance(t) / VALUE_GROUP[valueOf(t)];
 }
