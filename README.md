@@ -5,8 +5,10 @@ Browser-Spiel von **highspeedvorort.de**: Die Verträge fliegen wie Blätter im 
 **Spielen:** https://hekobuero.github.io/MoFu-Sniper/
 
 ## Steuerung
-- **Handy:** irgendwo ziehen = Zielfernrohr bewegen · **FEUER** = Schuss · **RUHIG** halten = Luft anhalten (weniger Wackeln)
-- **PC:** Maus = zielen · Klick = Schuss · Leertaste / rechte Maustaste halten = Luft anhalten
+- Standard: First-Person-Sicht mit Gewehr, rausgezoomt. Aus der Hüfte streut der Schuss stark.
+- **Handy:** irgendwo ziehen = zielen · **ZOOM** antippen = anlegen/absetzen (gedrückt halten = nur solange) · **FEUER** = Schuss · **RUHIG** (nur im Zoom) halten = Luft anhalten
+- **PC:** Maus = zielen · Klick = Schuss · rechte Maustaste halten oder Taste Z = Zoom · Leertaste halten = Luft anhalten
+- Im Zoom (1,75×) wackelt das Fernrohr stark (Atmung + Handzittern); RUHIG dämpft das nur für ca. 3 s.
 - Repetieren nach jedem Schuss, Nachladen nach 5 Schuss. Runde: 75 Sekunden, 5 Treffer in Folge = +3 s.
 
 ## Schwierigkeit
@@ -18,4 +20,6 @@ Einmalig `supabase-setup.sql` im Supabase SQL Editor ausführen. Ohne Tabelle ze
 
 ## Dateien
 `index.html`, `style.css`, `js/game.js` (Spiel), `js/data.js` (alle 107 Tarife aus der Provisionsliste, Beträge in Cent), `js/audio.js` (prozedurale WebAudio-Sounds), `js/leaderboard.js` (Supabase), `assets/` (HEKO-Logo, T-Logo), `favicon.svg`, `.nojekyll`.
-Test-Parameter: `?seconds=N` (Rundenlänge), `?nointro`.
+Test-Parameter: `?seconds=N` (Rundenlänge), `?nointro`, `?nosway` (kein Wackeln, keine Hüft-Streuung), `?freeze` (Verträge stehen still).
+
+Version 20261031-1410

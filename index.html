@@ -8,7 +8,7 @@
 <meta name="description" content="MoFu Sniper – HEKO präsentiert. Schieß die Verträge ab und sammle Provision! highspeedvorort.de">
 <title>MoFu Sniper – HEKO präsentiert</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="style.css?v=20261031a">
+<link rel="stylesheet" href="style.css?v=20261031-1410">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -27,9 +27,10 @@
     <span class="hud-brand"><img src="assets/t-logo.svg" alt="" class="hud-t">highspeedvorort.de</span>
   </div>
   <div id="reloadMsg" class="reload-msg hidden">Nachladen…</div>
-  <div id="aimHint" class="aim-hint">☝️ Ziehen zum Zielen · FEUER zum Schießen</div>
+  <div id="aimHint" class="aim-hint">☝️ Ziehen = Zielen · 🔭 ZOOM = Anlegen · FEUER</div>
   <div class="controls">
     <button id="btnSteady" class="ctrl steady" aria-label="Luft anhalten"><span>RUHIG</span><i id="breathBar"></i></button>
+    <button id="btnZoom" class="ctrl zoom" aria-label="Zoom / Anlegen"><span>🔭<br>ZOOM</span></button>
     <button id="btnFire" class="ctrl fire" aria-label="Feuer"><span>FEUER</span></button>
   </div>
 </div>
@@ -55,6 +56,7 @@
     <button id="btnBoard" class="btn">🏆 BESTENLISTE</button>
     <button id="btnHelp" class="btn ghost">So geht's</button>
     <div class="menu-foot"><img src="assets/t-logo.svg" alt="" class="foot-t"> highspeedvorort.de</div>
+    <div class="version">Version 20261031-1410</div>
   </div>
 </div>
 
@@ -64,8 +66,10 @@
     <h2>So geht's</h2>
     <ul class="help-list">
       <li>☝️ <b>Ziehen</b> irgendwo auf dem Bildschirm bewegt das Zielfernrohr (am PC: Maus).</li>
-      <li>🎯 <b>FEUER</b> schießt (am PC: Klick). Nach jedem Schuss wird repetiert, nach 5 Schuss nachgeladen.</li>
-      <li>🫁 <b>RUHIG</b> gedrückt halten = Luft anhalten, das Fernrohr wackelt kaum (am PC: Leertaste oder rechte Maustaste).</li>
+      <li>🔭 <b>ZOOM</b> tippen = anlegen/absetzen, gedrückt halten = nur solange zoomen (am PC: rechte Maustaste halten oder Taste Z).</li>
+      <li>🎯 <b>FEUER</b> schießt (am PC: Klick). Aus der Hüfte streut das Gewehr stark – mit Zoom triffst du viel besser.</li>
+      <li>🫁 Im Zoom zittert das Fernrohr stark. <b>RUHIG</b> halten = Luft anhalten, dann wackelt es weniger (am PC: Leertaste).</li>
+      <li>🔁 Nach jedem Schuss wird repetiert, nach 5 Schuss nachgeladen.</li>
       <li>💶 Jeder Treffer bringt den <b>Euro-Wert + AP</b> laut Provisionsliste.</li>
       <li>✨ Je wertvoller der Vertrag, desto kleiner, schneller und zappeliger fliegt er – und desto goldener leuchtet er.</li>
       <li>🔥 5 Treffer in Folge = <b>+3 Sekunden</b>.</li>
@@ -111,6 +115,6 @@
 </div>
 
 <div id="rotateTip" class="hidden"></div>
-<script type="module" src="js/game.js?v=20261031a"></script>
+<script type="module" src="js/game.js?v=20261031-1410"></script>
 </body>
 </html>

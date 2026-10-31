@@ -1,12 +1,12 @@
 // MoFu Sniper – HEKO präsentiert · highspeedvorort.de
-import { TARIFFS, CATEGORIES, difficulty, spawnWeight } from './data.js?v=20261031a';
-import * as A from './audio.js?v=20261031a';
-import { fetchTop, submitScore } from './leaderboard.js?v=20261031a';
+import { TARIFFS, CATEGORIES, difficulty, spawnWeight } from './data.js?v=20261031-1410';
+import * as A from './audio.js?v=20261031-1410';
+import { fetchTop, submitScore } from './leaderboard.js?v=20261031-1410';
 
-export const VERSION = '20261031a';
+export const VERSION = '20261031-1410';
 const params = new URLSearchParams(location.search);
 const ROUND_SECONDS = Math.max(5, +params.get('seconds') || 75);
-const MAG_SIZE = 5, BOLT_TIME = 0.6, RELOAD_TIME = 1.7, ZOOM = 2.6;
+const MAG_SIZE = 5, BOLT_TIME = 0.6, RELOAD_TIME = 1.7, ZOOM = 1.75, ZOOM_TIME = 0.2;
 const SW = 300, SH = 200, PAD = 28; // logische Vertragskarten-Größe (+Rand für Glanz)
 const opts = { freeze: params.has('freeze'), noSway: params.has('nosway') };
 
@@ -35,8 +35,8 @@ function resize() {
   DPR = Math.min(window.devicePixelRatio || 1, 3);
   canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   const m = Math.min(W, H);
-  baseCard = clamp(m * 0.30, 96, 230);
-  scopeR = clamp(m * 0.37, 112, 240);
+  baseCard = clamp(m * 0.22, 70, 170);
+  scopeR = clamp(m * 0.40, 120, 260);
   HORIZON = H * (W > H ? 0.70 : 0.64);
   spritePx = clamp(Math.round(baseCard * DPR * 1.9), 220, 680);
   sprites.clear(); backSprite = null;
@@ -287,7 +287,7 @@ let windDir = 1, gust = 0, windT = 0, flash = 0, menuSpawnT = 0;
 function newRound() {
   return {
     timeLeft: ROUND_SECONDS, provision: 0, hits: 0, shots: 0, streak: 0, bestStreak: 0,
-    mag: MAG_SIZE, boltT: 0, reloadT: 0, contracts: [], spawnT: 0.2, breath: 1, steady: false,
+    mag: MAG_SIZE, boltT: 0, reloadT: 0, contracts: [], spawnT: 0.2, breath: 1, steady: false, zoom: false, zoomT: 0,
     recoil: 0, swayT: rand(0, 10), best: null, log: [], lastTick: 99, ended: false,
   };
 }
@@ -428,23 +428,107 @@ function drawWorld(g, list) {
   drawParts(g);
 }
 
+// Unruhe: aus der Hüfte leicht, im Zoom stark (Atmung + Handzittern). RUHIG hilft, aber nicht ganz.
 function sway() {
   if (!G || opts.noSway) return { x: 0, y: 0 };
-  const t = G.swayT, m = Math.min(W, H);
-  let amp = m * 0.022;
-  if (G.steady && G.breath > 0) amp *= 0.12; else if (G.breath <= 0.02) amp *= 1.7;
-  return { x: amp * (Math.sin(t * 1.1) * 0.7 + Math.sin(t * 2.7 + 1.3) * 0.3), y: amp * (Math.sin(t * 0.8 + 0.6) * 0.6 + Math.cos(t * 2.1) * 0.4) };
+  const t = G.swayT, m = Math.min(W, H), z = ease(G.zoomT);
+  const holding = G.steady && G.breath > 0, empty = G.breath <= 0.02;
+  let breathAmp = m * lerp(0.008, 0.055, z), tremor = m * lerp(0.0015, 0.009, z);
+  if (holding) { breathAmp *= 0.32; tremor *= 0.55; } else if (empty) { breathAmp *= 1.6; tremor *= 1.8; }
+  const bx = Math.sin(t * 1.15) * 0.65 + Math.sin(t * 2.7 + 1.3) * 0.35;
+  const by = Math.sin(t * 0.85 + 0.6) * 0.6 + Math.cos(t * 2.2) * 0.4;
+  const tx = Math.sin(t * 9.3) * 0.5 + Math.sin(t * 13.7 + 2) * 0.3 + Math.sin(t * 21.1 + 4) * 0.2;
+  const ty = Math.cos(t * 8.1 + 1) * 0.5 + Math.sin(t * 15.3) * 0.3 + Math.cos(t * 19.7 + 3) * 0.2;
+  return { x: breathAmp * bx + tremor * tx, y: breathAmp * by + tremor * ty };
 }
-function aimPoint() { const s = sway(); return { x: clamp(aim.x + s.x, 0, W), y: clamp(aim.y + s.y - (G ? G.recoil : 0), 0, H) }; }
+const ease = t => t * t * (3 - 2 * t);
+function aimPoint() { const s = sway(); return { x: clamp(aim.x + s.x, 0, W), y: clamp(aim.y + s.y - (G ? G.recoil * (0.25 + 0.75 * ease(G.zoomT)) : 0), 0, H) }; }
+// Streuung aus der Hüfte (ohne Zoom): großer Kreis, darum lohnt sich das Anlegen
+function hipSpread() { return opts.noSway ? 0 : Math.min(W, H) * 0.085; }
+
+// ---------- Gewehr (First-Person) ----------
+function drawRifle(g, P) {
+  const z = ease(G ? G.zoomT : 0);
+  if (z > 0.98) return;
+  const m = Math.min(W, H);
+  const L = clamp(Math.min(H * 0.5, W * 0.95), 180, 440);
+  const px = W * (W > H ? 0.64 : 0.58), py = H + L * 0.14;
+  let ang = Math.atan2(P.x - px, -(P.y - py));           // 0 = gerade nach oben
+  ang = clamp(ang * 0.85, -0.95, 0.35);
+  const kick = G ? G.recoil / scopeR : 0;
+  g.save();
+  g.globalAlpha = 1 - z;
+  g.translate(px - z * (px - W / 2) * 0.6, py + z * L * 0.55 + kick * L * 0.12);
+  g.rotate(ang + kick * 0.08);
+  // perspektivisches Trapez entlang der Laufachse: y=0 nah (breit), y=-1 fern (schmal)
+  const k = v => v * L;
+  const WF = 1.45; const quad = (y0, y1, w0, w1, fill, r = 0) => { w0 *= WF; w1 *= WF; g.beginPath(); g.moveTo(-k(w0) / 2, k(y0)); g.lineTo(-k(w1) / 2, k(y1)); g.lineTo(k(w1) / 2, k(y1)); g.lineTo(k(w0) / 2, k(y0)); g.closePath(); g.fillStyle = fill; g.fill(); };
+  const lg = (x0, x1, stops) => { const gr = g.createLinearGradient(k(x0), 0, k(x1), 0); stops.forEach(([o, c]) => gr.addColorStop(o, c)); return gr; };
+  // Schatten
+  g.save(); g.globalAlpha *= 0.28; g.translate(L * 0.03, L * 0.02); quad(0.1, -0.62, 0.36, 0.1, '#000'); g.restore();
+  // Schaft (Kunststoff/Carbon, dunkel) mit Magenta-Zierlinie
+  quad(0.12, -0.3, 0.36, 0.17, lg(-0.18, 0.18, [[0, '#15151c'], [0.35, '#34343f'], [0.6, '#2a2a33'], [1, '#101016']]));
+  quad(0.12, -0.3, 0.05, 0.022, 'rgba(226,0,116,.95)');
+  g.fillStyle = 'rgba(255,255,255,.12)'; g.beginPath(); g.moveTo(-k(0.15), k(0.1)); g.lineTo(-k(0.075), k(-0.29)); g.lineTo(-k(0.06), k(-0.29)); g.lineTo(-k(0.12), k(0.1)); g.fill();
+  // HEKO-Plakette am Schaft
+  if (IMG.heko) { g.save(); g.translate(k(0.09), k(-0.02)); g.rotate(-0.06); g.fillStyle = 'rgba(255,255,255,.9)'; roundRect(g, -k(0.05), -k(0.014), k(0.1), k(0.028), 3); g.fill();
+    g.drawImage(IMG.heko, -k(0.044), -k(0.010), k(0.088), k(0.088) * 101.83 / 414.88); g.restore(); }
+  // System / Verschluss
+  quad(-0.28, -0.56, 0.17, 0.1, lg(-0.09, 0.09, [[0, '#2c2d33'], [0.45, '#6a6c76'], [0.6, '#4a4c55'], [1, '#1e1f24']]));
+  // Kammerstängel rechts
+  g.strokeStyle = '#5b5d66'; g.lineWidth = k(0.016); g.lineCap = 'round';
+  g.beginPath(); g.moveTo(k(0.06), k(-0.36)); g.lineTo(k(0.13), k(-0.33)); g.stroke();
+  g.fillStyle = '#2a2b31'; g.beginPath(); g.arc(k(0.135), k(-0.33), k(0.018), 0, 7); g.fill();
+  // Lauf
+  quad(-0.55, -1.0, 0.05, 0.024, lg(-0.025, 0.025, [[0, '#1a1b20'], [0.4, '#7c7f8a'], [0.55, '#4d4f58'], [1, '#141418']]));
+  // Mündungsbremse
+  quad(-0.95, -1.02, 0.036, 0.032, lg(-0.02, 0.02, [[0, '#111'], [0.5, '#555'], [1, '#111']]));
+  // Zielfernrohr (oben auf dem System)
+  g.save(); g.translate(0, 0);
+  quad(-0.2, -0.27, 0.15, 0.135, '#18181d');                  // Okular
+  quad(-0.205, -0.215, 0.152, 0.15, '#E20074');               // Magenta-Ring
+  quad(-0.27, -0.6, 0.095, 0.075, lg(-0.05, 0.05, [[0, '#0f0f13'], [0.4, '#3d3e46'], [0.55, '#25262c'], [1, '#0c0c10']]));
+  quad(-0.6, -0.7, 0.075, 0.115, '#1a1a20');                  // Objektiv-Glocke
+  quad(-0.67, -0.69, 0.11, 0.112, '#E20074');
+  g.fillStyle = 'rgba(120,200,255,.55)'; g.beginPath(); g.ellipse(0, k(-0.7), k(0.05), k(0.012), 0, 0, 7); g.fill();
+  // Türme
+  g.fillStyle = '#26272d'; roundRect(g, -k(0.022), k(-0.43), k(0.044), k(0.04), 3); g.fill();
+  roundRect(g, k(0.04), k(-0.42), k(0.03), k(0.03), 3); g.fill();
+  if (IMG.t) g.drawImage(IMG.t, -k(0.016), k(-0.505), k(0.032), k(0.032));
+  g.restore();
+  // Mündungsfeuer
+  if (flash > 0.4) {
+    const r = k(0.09) * flash; const fg = g.createRadialGradient(0, k(-1.05), 0, 0, k(-1.05), r * 2);
+    fg.addColorStop(0, 'rgba(255,255,230,1)'); fg.addColorStop(0.3, 'rgba(255,200,90,.9)'); fg.addColorStop(1, 'rgba(255,120,40,0)');
+    g.fillStyle = fg; g.beginPath(); g.arc(0, k(-1.05), r * 2, 0, 7); g.fill();
+  }
+  g.restore();
+}
+
+function drawReticle(g, P) {
+  const z = ease(G.zoomT); if (z > 0.6) return;
+  g.save(); g.globalAlpha = 1 - z / 0.6;
+  const sr = hipSpread();
+  if (sr > 0) { g.strokeStyle = 'rgba(255,255,255,.35)'; g.setLineDash([4, 6]); g.lineWidth = 1.2; g.beginPath(); g.arc(P.x, P.y, sr, 0, 7); g.stroke(); g.setLineDash([]); }
+  g.strokeStyle = 'rgba(0,0,0,.6)'; g.lineWidth = 4;
+  const seg = (x1, y1, x2, y2) => { g.beginPath(); g.moveTo(P.x + x1, P.y + y1); g.lineTo(P.x + x2, P.y + y2); g.stroke(); };
+  for (const [c, w] of [['rgba(0,0,0,.55)', 4], ['#fff', 2]]) { g.strokeStyle = c; g.lineWidth = w; seg(-16, 0, -6, 0); seg(6, 0, 16, 0); seg(0, -16, 0, -6); seg(0, 6, 0, 16); }
+  g.fillStyle = '#ff1f8f'; g.beginPath(); g.arc(P.x, P.y, 2.4, 0, 7); g.fill();
+  const busy = G.reloadT > 0 ? 1 - G.reloadT / RELOAD_TIME : G.boltT > 0 ? 1 - G.boltT / BOLT_TIME : 1;
+  if (busy < 1) { g.strokeStyle = G.reloadT > 0 ? '#ffcf3f' : '#fff'; g.lineWidth = 3; g.beginPath(); g.arc(P.x, P.y, 22, -Math.PI / 2, -Math.PI / 2 + busy * Math.PI * 2); g.stroke(); }
+  g.restore();
+}
 
 function drawScope(g, P) {
-  const R = scopeR;
-  // abgedunkelte Umgebung
+  const z = ease(G.zoomT); if (z < 0.03) return;
+  const R = scopeR * (0.55 + 0.45 * z), Z = lerp(1, ZOOM, z);
+  g.save(); g.globalAlpha = Math.min(1, z * 1.6);
+  // Vignette um das Zielfernrohr (fast schwarz, wie beim echten Anlegen)
   g.save(); g.beginPath(); g.rect(0, 0, W, H); g.arc(P.x, P.y, R, 0, Math.PI * 2, true);
-  g.fillStyle = 'rgba(6,4,16,.52)'; g.fill('evenodd'); g.restore();
+  g.fillStyle = `rgba(4,3,10,${0.86 * z})`; g.fill('evenodd'); g.restore();
   // vergrößertes Bild
   g.save(); g.beginPath(); g.arc(P.x, P.y, R, 0, Math.PI * 2); g.clip();
-  g.translate(P.x, P.y); g.scale(ZOOM, ZOOM); g.translate(-P.x, -P.y);
+  g.translate(P.x, P.y); g.scale(Z, Z); g.translate(-P.x, -P.y);
   drawWorld(g, G.contracts);
   g.restore();
   // Linsen-Vignette
@@ -471,7 +555,8 @@ function drawScope(g, P) {
   if (busy < 1) { g.strokeStyle = G.reloadT > 0 ? '#ffcf3f' : '#ffffff'; g.lineWidth = 4;
     g.beginPath(); g.arc(P.x, P.y, R + R * 0.04, -Math.PI / 2, -Math.PI / 2 + busy * Math.PI * 2); g.stroke(); }
   g.font = `700 ${Math.max(10, R * 0.08)}px system-ui, sans-serif`; g.fillStyle = 'rgba(255,255,255,.75)'; g.textAlign = 'left';
-  g.fillText(`${ZOOM.toFixed(1).replace('.', ',')}×`, P.x + R * 0.62, P.y + R * 0.7);
+  g.fillText(`${Z.toFixed(1).replace('.', ',')}×`, P.x + R * 0.62, P.y + R * 0.7);
+  g.restore();
 }
 
 // ---------- Schießen ----------
@@ -479,6 +564,9 @@ function fire() {
   if (state !== 'play' || !G || G.ended) return;
   if (G.boltT > 0 || G.reloadT > 0) { A.dry(); return; }
   const P = aimPoint();
+  const scoped = G.zoomT > 0.85;
+  if (!scoped) { const sr = hipSpread() * (1 - ease(G.zoomT)), a = rand(0, Math.PI * 2), r = sr * Math.sqrt(Math.random()); P.x += Math.cos(a) * r; P.y += Math.sin(a) * r; }
+  G.lastShot = { x: P.x, y: P.y, scoped };
   G.shots++; G.mag--; A.shot(); flash = 1; G.recoil = scopeR * 0.32;
   const c = hitTest(G.contracts, P.x, P.y);
   if (c) {
@@ -518,6 +606,8 @@ function updateHud() {
   $('reloadMsg').classList.toggle('hidden', !(G.reloadT > 0));
   $('btnFire').classList.toggle('cooldown', G.boltT > 0 || G.reloadT > 0);
   $('btnSteady').classList.toggle('on', G.steady && G.breath > 0);
+  $('btnZoom').classList.toggle('on', G.zoom);
+  document.body.classList.toggle('scoped', G.zoom);
   $('breathBar').style.transform = `scaleX(${G.breath})`;
 }
 
@@ -536,7 +626,7 @@ function startRound() {
   updateHud();
 }
 function endRound() {
-  G.ended = true; state = 'end'; G.steady = false;
+  G.ended = true; state = 'end'; G.steady = false; G.zoom = false; document.body.classList.remove('scoped');
   $('hud').classList.add('hidden');
   A.fanfare();
   $('endProv').textContent = fmtEUR(G.provision);
@@ -584,7 +674,7 @@ canvas.addEventListener('pointerdown', e => {
     document.body.classList.add('mouse');
     aim.x = e.clientX; aim.y = e.clientY;
     if (e.button === 0) fire();
-    if (e.button === 2 && G) G.steady = true;
+    if (e.button === 2) setZoom(true);
     return;
   }
   document.body.classList.remove('mouse');
@@ -598,7 +688,18 @@ canvas.addEventListener('pointermove', e => {
   lastX = e.clientX; lastY = e.clientY;
   $('aimHint').classList.add('fade');
 });
-const endDrag = e => { if (e.pointerId === dragId) dragId = null; if (e.pointerType === 'mouse' && e.button === 2 && G) G.steady = false; };
+const endDrag = e => { if (e.pointerId === dragId) dragId = null; if (e.pointerType === 'mouse' && e.button === 2) setZoom(false); };
+function setZoom(on) {
+  if (!G || state !== 'play') return;
+  if (on !== G.zoom) { G.zoom = on; A.zoom?.(on); }
+  updateHud();
+}
+// ZOOM-Knopf: kurz tippen = an/aus, gedrückt halten = nur solange gehalten
+let zoomDownAt = 0, zoomWasOn = false;
+$('btnZoom').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); zoomDownAt = performance.now(); zoomWasOn = !!(G && G.zoom); setZoom(true); });
+const zoomUp = e => { if (!zoomDownAt) return; const held = performance.now() - zoomDownAt; zoomDownAt = 0;
+  if (held > 260 || zoomWasOn) setZoom(false); };
+for (const ev of ['pointerup', 'pointercancel']) $('btnZoom').addEventListener(ev, zoomUp);
 canvas.addEventListener('pointerup', endDrag); canvas.addEventListener('pointercancel', endDrag);
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 $('btnFire').addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); fire(); });
@@ -610,6 +711,7 @@ window.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT') return;
   if (e.code === 'Space' || e.key === 'Shift') { if (G) G.steady = true; e.preventDefault(); }
   if (e.key === 'Enter' || e.key === 'f' || e.key === 'F') fire();
+  if ((e.key === 'z' || e.key === 'Z' || e.key === 'q' || e.key === 'Q') && !e.repeat && G) setZoom(!G.zoom);
 });
 window.addEventListener('keyup', e => { if (e.code === 'Space' || e.key === 'Shift') steadyOff(); });
 document.addEventListener('gesturestart', e => e.preventDefault());
@@ -660,7 +762,8 @@ function frame(now) {
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   if (state === 'play' && G) {
-    G.swayT += dt * (G.steady && G.breath > 0 ? 0.5 : 1);
+    G.zoomT = clamp(G.zoomT + (G.zoom ? 1 : -1) * dt / ZOOM_TIME, 0, 1);
+    G.swayT += dt * (G.steady && G.breath > 0 ? 0.6 : 1);
     if (G.steady && G.breath > 0) G.breath = Math.max(0, G.breath - dt / 3.2); else if (!G.steady) G.breath = Math.min(1, G.breath + dt / 4);
     G.recoil *= Math.exp(-dt * 7);
     if (G.boltT > 0) G.boltT = Math.max(0, G.boltT - dt);
@@ -675,7 +778,10 @@ function frame(now) {
     G.contracts = G.contracts.filter(c => !outOfView(c));
     updateFx(dt);
     drawWorld(ctx, G.contracts);
-    drawScope(ctx, aimPoint());
+    const P = aimPoint();
+    drawRifle(ctx, P);
+    drawReticle(ctx, P);
+    drawScope(ctx, P);
     drawFloats(ctx);
     if (flash > 0) { ctx.fillStyle = `rgba(255,240,220,${flash * 0.18})`; ctx.fillRect(0, 0, W, H); }
     hudT -= dt; if (hudT <= 0) { hudT = 0.1; updateHud(); }
@@ -709,7 +815,7 @@ function frame(now) {
 window.__mofu = {
   VERSION, TARIFFS, opts, aim, fmtEUR, payoutText,
   get state() { return state; }, get game() { return G; },
-  setAim(x, y) { aim.x = x; aim.y = y; }, fire, startRound,
+  setAim(x, y) { aim.x = x; aim.y = y; }, fire, startRound, setZoom, hipSpread,
   aimPoint, endNow() { if (G) G.timeLeft = 0; },
   spawnAt(id, x, y) { const c = makeContract(TARIFFS[id], x, y, true); c.frozen = true; c.rot = 0; c.flip = 0; c.x = x; c.y = y; G.contracts.push(c); return c; },
   clearContracts() { if (G) G.contracts.length = 0; },

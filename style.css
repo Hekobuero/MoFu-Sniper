@@ -141,3 +141,11 @@ h1 em { font-style: normal; color: var(--mag); text-shadow: 0 0 18px rgba(226,0,
 .intro-title img { height: 1.1em; border-radius: 10px; box-shadow: 0 0 24px rgba(226,0,116,.6); }
 .intro-title em { font-style: normal; color: var(--mag); }
 .intro-url { font-size: 14px; letter-spacing: .12em; opacity: 0; animation: introIn 1s ease-out 1.8s forwards; color: #f3d9e8; }
+.ctrl.zoom { width: 70px; height: 70px; font-size: 11px; line-height: 1.25; background: rgba(20,20,35,.78); border: 2px solid rgba(226,0,116,.85); }
+.ctrl.zoom span { font-size: 11px; } 
+.ctrl.zoom.on { background: linear-gradient(180deg, #ff2b95, var(--mag)); border-color: #fff; }
+.ctrl.steady { display: none; }
+body.scoped .ctrl.steady { display: grid; }
+.version { font-size: 11px; opacity: .55; letter-spacing: .05em; }
+@media (orientation: landscape) and (max-height: 500px) { .ctrl.zoom { width: 62px; height: 62px; } }
+.aim-hint { left: calc(12px + var(--sal)); transform: none; white-space: normal; max-width: calc(100% - 150px - var(--sar)); text-align: left; border-radius: 12px; }

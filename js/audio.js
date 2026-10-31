@@ -158,3 +158,11 @@ export function startMusic() {
   nextNoteTime = ctx.currentTime + 0.1; musicTimer = setInterval(scheduleMusic, 80);
 }
 export function stopMusic() { clearInterval(musicTimer); musicTimer = null; }
+
+export function zoom(on) { // Anlegen / Absetzen: kurzes Rascheln + Klick
+  if (!ctx) return; const t = ctx.currentTime;
+  const n = noise(0.18, t); const f = ctx.createBiquadFilter(); f.type = 'bandpass';
+  f.frequency.setValueAtTime(on ? 600 : 1400, t); f.frequency.exponentialRampToValueAtTime(on ? 1600 : 500, t + 0.16);
+  const g = ctx.createGain(); env(g, t, 0.02, 0.12, 0.16); n.connect(f); f.connect(g); g.connect(sfx);
+  if (on) click(t + 0.15, 2800, 0.18, 0.03);
+}
